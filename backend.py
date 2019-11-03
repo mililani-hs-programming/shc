@@ -2,7 +2,6 @@
 from datetime import datetime
 #unix_Converter()
 import MySQLdb
-import pdb
 #import sqlite3
 
 con = MySQLdb.connect(db="hacc",host="pf.parsl.dev", user="hacc", passwd="hacc2019")
@@ -28,7 +27,6 @@ def findMaxTime(con):
 
 def add_column(db, table, column, data, dtype="TEXT"):
     """Set a column equal to a list, creating the column if it doesn't exist"""
-    pdb.set_trace()
     # Sanity checks #
     if type(db) is not MySQLdb.connections.Connection:
         raise TypeError("Expected MySQLdb.connections.connection, got {}".format(type(db)))
