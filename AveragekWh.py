@@ -16,7 +16,4 @@ def gatherRows(starttime, endtime):
 
 
 def averageData(column):
-
-
-
-gatherRows()
+    gatherRows()
