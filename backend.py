@@ -2,7 +2,15 @@
 from datetime import datetime
 #unix_Converter()
 import MySQLdb
-#import sqlite3
+import structures
+
+
+global meters  # List of structures.Meter objects
+meters = []
+global meterdict  # Dictionary of charger name vs 'meters' index
+meterdict = {}
+
+con = MySQLdb.connect(db="hacc",host="pf.parsl.dev", user="hacc", passwd="hacc2019")
 
 con = MySQLdb.connect(db="hacc",host="pf.parsl.dev", user="hacc", passwd="hacc2019")
 #con = sqlite3.connect('shc.db')
@@ -19,11 +27,6 @@ def findMaxTime(con):
     maxTimeResult = con.store_result()
     maxTime = maxTimeResult.fetch_row(maxrows=0)
     return(maxTime)
-
-    '''max_time = cursorObj.execute("SELECT MAX([End_Time]) FROM raw")
-    min_time =  cursorObj.execute("SELECT MIN([Start_Time]) FROM raw")'''
-    print(minTime)
-    print(maxTime)
 
 def add_column(db, table, column, data, dtype="TEXT"):
     """Set a column equal to a list, creating the column if it doesn't exist"""
@@ -114,3 +117,111 @@ def unix_ConvertEnd(con):
             #print (utcint)
         EndListInt.append(utcint)
     return EndListInt
+
+
+global starttime
+global endtime
+global rowDataList
+#given start + end time, find values between it, find avg
+#select avg kwh from raw where timestamp is less than or greater than __
+
+def gatherRows(starttime, endtime, con):
+    con.query(("SELECT * FROM raw WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
+    rowData = con.store_result()
+    rowDataResults = rowData.fetch_row(maxrows=0)
+    rowDataList = []
+    for i in rowDataResults:
+        rowDataList.append(i)
+    print(rowDataList)
+    return rowDataList
+
+
+
+def averageData(column):
+    rowDataList = gatherRows(starttime, endtime, con)
+    columndata = []
+    numba=0
+    for i in rowDataList:
+        columndata.append(rowDataList[numba][column])
+        numba+=1
+    print(columndata)
+    return columndata
+
+def averageDataActually(column):
+    listOfValues=averageData(column)
+    totalAmount=0
+    totalValues=0
+    for i in listOfValues:
+        totalAmount+=i
+        totalValues+=1
+    print(totalAmount/totalValues)
+
+
+#Gather by Time and Average by Column functions
+global starttime
+global endtime
+global rowDataList
+#given start + end time, find values between it, find avg
+#select avg kwh from raw where timestamp is less than or greater than __
+
+def gatherRows(starttime, endtime, con):
+    con.query(("SELECT * FROM raw WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
+    rowData = con.store_result()
+    rowDataResults = rowData.fetch_row(maxrows=0)
+    rowDataList = []
+    for i in rowDataResults:
+        rowDataList.append(i)
+    print(rowDataList)
+    return rowDataList
+
+
+
+def averageData(column):
+    rowDataList = gatherRows(starttime, endtime, con)
+    columndata = []
+    numba=0
+    for i in rowDataList:
+        columndata.append(rowDataList[numba][column])
+        numba+=1
+    print(columndata)
+    return columndata
+
+def averageDataActually(column):
+    listOfValues=averageData(column)
+    totalAmount=0
+    totalValues=0
+    for i in listOfValues:
+        totalAmount+=i
+        totalValues+=1
+    print(totalAmount/totalValues)
+
+#Find TimeIntervals and add Timeintervals to proc table
+def FindDayIntervals():
+    maxTime = findMaxTime(con)
+    minTime = findMinTime(con)
+    maxTime=int(maxTime[0][0])
+    minTime=int(minTime[0][0])
+    UnixDayValue=86400
+    indexes=int((maxTime-minTime)/UnixDayValue)+1
+    TimeIndexes=[]
+    for i in range(indexes):
+        x=minTime+i*UnixDayValue
+        TimeIndexes.append(x)
+    TimeIndexes.append(maxTime)
+    print(maxTime)
+    print(minTime)
+    print(TimeIndexes)
+    return(TimeIndexes)
+    add_column(db=con, table='proc', column='TimeInterval', data=FindDayIntervals())
+
+
+def populate_meters(db):
+    db.query("SELECT DISTINCT Charge_Station_Name FROM raw;")
+    dbnames = db.store_result()
+    chargerindex = 0  # Index of charger name in 'meters'
+    for chargertup in dbnames.fetch_row(maxrows=0):
+        chargername = chargertup[0]
+        meterdict[chargername] = chargerindex
+        chargerindex += 1
+        meters.append(structures.Meter(chargername))
+
