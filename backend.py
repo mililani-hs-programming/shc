@@ -11,10 +11,8 @@ global meterdict  # Dictionary of charger name vs 'meters' index
 meterdict = {}
 
 con = MySQLdb.connect(db="hacc",host="pf.parsl.dev", user="hacc", passwd="hacc2019")
-
-con = MySQLdb.connect(db="hacc",host="pf.parsl.dev", user="hacc", passwd="hacc2019")
-#con = sqlite3.connect('shc.db')
 cursorObj = con.cursor()
+
 
 def findMinTime(con):
     con.query("SELECT MIN(Start_Time) FROM raw")
@@ -73,6 +71,7 @@ def sql_fetch_StartTimes(con):
         StartList.append(str(row))
     return StartList
 
+
 def sql_fetch_EndTimes(con):
     #EndTime = cursorObj.execute('SELECT End_Time FROM raw')
     con.query('SELECT End_Time FROM raw')
@@ -101,6 +100,7 @@ def unix_ConvertStart(con):
         StartListInt.append(utcint)
     return StartListInt
 
+
 def unix_ConvertEnd(con):
     EndListInt = []
     EndList=sql_fetch_EndTimes(con)
@@ -119,12 +119,8 @@ def unix_ConvertEnd(con):
     return EndListInt
 
 
-global starttime
-global endtime
-global rowDataList
 #given start + end time, find values between it, find avg
 #select avg kwh from raw where timestamp is less than or greater than __
-
 def gatherRows(starttime, endtime, con):
     con.query(("SELECT * FROM raw WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
     rowData = con.store_result()
@@ -136,7 +132,6 @@ def gatherRows(starttime, endtime, con):
     return rowDataList
 
 
-
 def averageData(column):
     rowDataList = gatherRows(starttime, endtime, con)
     columndata = []
@@ -146,6 +141,7 @@ def averageData(column):
         numba+=1
     print(columndata)
     return columndata
+
 
 def averageDataActually(column):
     listOfValues=averageData(column)
@@ -158,12 +154,8 @@ def averageDataActually(column):
 
 
 #Gather by Time and Average by Column functions
-global starttime
-global endtime
-global rowDataList
-#given start + end time, find values between it, find avg
-#select avg kwh from raw where timestamp is less than or greater than __
-
+    #given start + end time, find values between it, find avg
+    #select avg kwh from raw where timestamp is less than or greater than __
 def gatherRows(starttime, endtime, con):
     con.query(("SELECT * FROM raw WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
     rowData = con.store_result()
@@ -175,8 +167,7 @@ def gatherRows(starttime, endtime, con):
     return rowDataList
 
 
-
-def averageData(column):
+def averageData(starttime, endtime, column):
     rowDataList = gatherRows(starttime, endtime, con)
     columndata = []
     numba=0
@@ -186,14 +177,16 @@ def averageData(column):
     print(columndata)
     return columndata
 
-def averageDataActually(column):
-    listOfValues=averageData(column)
+
+def averageDataActually(starttime, endtime, column):
+    listOfValues=averageData(starttime, endtime, column)
     totalAmount=0
     totalValues=0
     for i in listOfValues:
         totalAmount+=i
         totalValues+=1
     print(totalAmount/totalValues)
+
 
 #Find TimeIntervals and add Timeintervals to proc table
 def FindDayIntervals():
@@ -224,4 +217,3 @@ def populate_meters(db):
         meterdict[chargername] = chargerindex
         chargerindex += 1
         meters.append(structures.Meter(chargername))
-
