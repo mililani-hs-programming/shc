@@ -2,6 +2,7 @@
 from datetime import datetime
 #unix_Converter()
 import MySQLdb
+from statistics import mean
 import structures
 
 
@@ -132,41 +133,6 @@ def gatherRows(starttime, endtime, con):
     return rowDataList
 
 
-def averageData(column):
-    rowDataList = gatherRows(starttime, endtime, con)
-    columndata = []
-    numba=0
-    for i in rowDataList:
-        columndata.append(rowDataList[numba][column])
-        numba+=1
-    print(columndata)
-    return columndata
-
-
-def averageDataActually(column):
-    listOfValues=averageData(column)
-    totalAmount=0
-    totalValues=0
-    for i in listOfValues:
-        totalAmount+=i
-        totalValues+=1
-    print(totalAmount/totalValues)
-
-
-#Gather by Time and Average by Column functions
-    #given start + end time, find values between it, find avg
-    #select avg kwh from raw where timestamp is less than or greater than __
-def gatherRows(starttime, endtime, con):
-    con.query(("SELECT * FROM raw WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
-    rowData = con.store_result()
-    rowDataResults = rowData.fetch_row(maxrows=0)
-    rowDataList = []
-    for i in rowDataResults:
-        rowDataList.append(i)
-    print(rowDataList)
-    return rowDataList
-
-
 def averageData(starttime, endtime, column):
     rowDataList = gatherRows(starttime, endtime, con)
     columndata = []
@@ -179,7 +145,7 @@ def averageData(starttime, endtime, column):
 
 
 def averageDataActually(starttime, endtime, column):
-    listOfValues=averageData(starttime, endtime, column)
+    listOfValues=averageData(column)
     totalAmount=0
     totalValues=0
     for i in listOfValues:
@@ -217,3 +183,42 @@ def populate_meters(db):
         meterdict[chargername] = chargerindex
         chargerindex += 1
         meters.append(structures.Meter(chargername))
+
+
+def chargeTypeUsages(db, startTime, endTime, stationName):
+    rowDataList = gatherRows(startTime, endTime, db)
+
+    DCCData = 0
+    CHADData = 0
+    for row in rowDataList:
+        if row[0] == stationName:
+            if row[6] == 'CHADEMO':
+                CHADData += 1
+            elif row[6] == 'DCCOMBOTYP1':
+                DCCData += 1
+            else:
+                print("new charger type: {}".format(row[6]))
+
+
+def detect_congestion(db, start_time, end_time):
+    """Search for congestion **between** start_time and end_time
+    Returns True if avg time between usages is less than CONGESTION_THRESH"""
+    CONGESTION_THRESH = 60
+    return_dict = {}
+
+    for meter in meters:
+        time_between_charges = []
+        previous_previous_time = start_time  # When I made this variable, I realized all was lost.
+        current_time = start_time
+        while int(current_time) < end_time:
+            db.query("SELECT MIN(End_Time) FROM raw WHERE Charge_Station_Name='{}' AND End_Time>'{}'".format(meter.name, previous_previous_time))
+            previous_time = db.store_result().fetch_row()[0][0]
+            db.query("SELECT MIN(Start_Time) FROM raw WHERE Charge_Station_Name='{}' AND Start_Time>'{}'".format(meter.name, previous_time))
+            current_time = db.store_result().fetch_row()[0][0]
+            previous_previous_time = previous_time
+            time_between_charges.append(int(current_time) - int(previous_time))
+        if mean(time_between_charges) <= CONGESTION_THRESH:
+            return_dict[meter.name] = True
+        else:
+            return_dict[meter.name] = False
+    return return_dict
