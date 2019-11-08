@@ -2,6 +2,7 @@
 from datetime import datetime
 #unix_Converter()
 import MySQLdb
+from statistics import mean
 import structures
 
 
@@ -200,3 +201,68 @@ def chargeTypeUsages(db, startTime, endTime, stationName):
                 DCCData += 1
             else:
                 print("new charger type: {}".format(row[6]))
+
+
+def detect_congestion(db, start_time, end_time):
+    """Search for congestion **between** start_time and end_time
+    Returns True if avg time between usages is less than CONGESTION_THRESH"""
+    CONGESTION_THRESH = 60
+    return_dict = {}
+
+    for meter in meters:
+        time_between_charges = []
+        previous_previous_time = start_time  # When I made this variable, I realized all was lost.
+        current_time = start_time
+        while int(current_time) < end_time:
+            db.query("SELECT MIN(End_Time) FROM raw WHERE Charge_Station_Name='{}' AND End_Time>'{}'".format(meter.name, previous_previous_time))
+            previous_time = db.store_result().fetch_row()[0][0]
+            db.query("SELECT MIN(Start_Time) FROM raw WHERE Charge_Station_Name='{}' AND Start_Time>'{}'".format(meter.name, previous_time))
+            current_time = db.store_result().fetch_row()[0][0]
+            previous_previous_time = previous_time
+            time_between_charges.append(int(current_time) - int(previous_time))
+        if mean(time_between_charges) <= CONGESTION_THRESH:
+            return_dict[meter.name] = True
+        else:
+            return_dict[meter.name] = False
+    return return_dict
+
+
+def chargeCHADUsages(db, startTime, endTime, stationName):
+    rowDataList = gatherRows(startTime, endTime, db)
+    CHADData = 0
+    for row in rowDataList:
+        if row[0] == stationName:
+            if row[6] == 'CHADEMO':
+                CHADData += 1
+            elif row[6] == 'DCCOMBOTYP1':
+                pass
+            else:
+                print("new charger type: {}".format(row[6]))
+    return CHADData
+
+
+def chargeDCCUsages(db, startTime, endTime, stationName):
+    rowDataList = gatherRows(startTime, endTime, db)
+    DCCData = 0
+    for row in rowDataList:
+        if row[0] == stationName:
+            if row[6] == 'DCCOMBOTYP1':
+                DCCData += 1
+            elif row[6] == 'CHADEMO':
+                pass
+            else:
+                print("new charger type: {}".format(row[6]))
+    return DCCData
+
+
+def findUsageAverage(starttime, endtime, stationName):
+    timeInterval=endtime-starttime
+    if (chargeCHADUsages(con, starttime, endtime, stationName) == 0) and (chargeDCCUsages(con, starttime, endtime, "B") == 0):
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers appear to be broken.")
+    elif chargeCHADUsages(con, starttime, endtime, stationName) == 0:
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the CHADEMO charger appears to be broken.")
+    elif chargeDCCUsages(con, starttime, endtime, stationName) == 0:
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
+    else:
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers are being used.")
+
