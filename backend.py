@@ -131,7 +131,7 @@ def gatherRows(starttime, endtime, con):
     rowDataList = []
     for i in rowDataResults:
         rowDataList.append(i)
-    print(rowDataList)
+    #print(rowDataList)
     return rowDataList
 
 
