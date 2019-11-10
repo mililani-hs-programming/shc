@@ -129,7 +129,7 @@ def gatherRows(starttime, endtime, con):
     rowDataList = []
     for i in rowDataResults:
         rowDataList.append(i)
-    print(rowDataList)
+    #print(rowDataList)
     return rowDataList
 
 
@@ -222,3 +222,44 @@ def detect_congestion(db, start_time, end_time):
         else:
             return_dict[meter.name] = False
     return return_dict
+
+
+def chargeCHADUsages(db, startTime, endTime, stationName):
+    rowDataList = gatherRows(startTime, endTime, db)
+    CHADData = 0
+    for row in rowDataList:
+        if row[0] == stationName:
+            if row[6] == 'CHADEMO':
+                CHADData += 1
+            elif row[6] == 'DCCOMBOTYP1':
+                pass
+            else:
+                print("new charger type: {}".format(row[6]))
+    return CHADData
+
+
+def chargeDCCUsages(db, startTime, endTime, stationName):
+    rowDataList = gatherRows(startTime, endTime, db)
+    DCCData = 0
+    for row in rowDataList:
+        if row[0] == stationName:
+            if row[6] == 'DCCOMBOTYP1':
+                DCCData += 1
+            elif row[6] == 'CHADEMO':
+                pass
+            else:
+                print("new charger type: {}".format(row[6]))
+    return DCCData
+
+
+def findUsageAverage(starttime, endtime, stationName):
+    timeInterval=endtime-starttime
+    if (chargeCHADUsages(con, starttime, endtime, stationName) == 0) and (chargeDCCUsages(con, starttime, endtime, "B") == 0):
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers appear to be broken.")
+    elif chargeCHADUsages(con, starttime, endtime, stationName) == 0:
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the CHADEMO charger appears to be broken.")
+    elif chargeDCCUsages(con, starttime, endtime, stationName) == 0:
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
+    else:
+        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers are being used.")
+
