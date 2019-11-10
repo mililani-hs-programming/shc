@@ -158,12 +158,12 @@ def averageDataActually(starttime, endtime, column):
 
 
 #Find TimeIntervals and add Timeintervals to proc table
-def FindDayIntervals(con):
+def FindTimeIntervals(con, timeInterval):
     maxTime = findMaxTime(con)
     minTime = findMinTime(con)
     maxTime=int(maxTime[0][0])
     minTime=int(minTime[0][0])
-    UnixDayValue=86400
+    UnixDayValue=timeInterval
     indexes=int((maxTime-minTime)/UnixDayValue)+1
     DayIndexes=[]
     for i in range(indexes):
@@ -270,15 +270,25 @@ def chargeDCCUsages(db, startTime, endTime, stationName):
 
 
 def findUsageAverage(starttime, endtime, stationName):
+    CHADStatus=True
+    DCCStatus=True
     timeInterval=endtime-starttime
     if (chargeCHADUsages(con, starttime, endtime, stationName) == 0) and (chargeDCCUsages(con, starttime, endtime, stationName) == 0):
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers appear to be broken.")
+        CHADStatus = False
+        DCCStatus = False
     elif chargeCHADUsages(con, starttime, endtime, stationName) == 0:
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the CHADEMO charger appears to be broken.")
+        CHADStatus = False
+        DCCStatus = True
     elif chargeDCCUsages(con, starttime, endtime, stationName) == 0:
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
+        CHADStatus = True
+        DCCStatus = False
     else:
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers are being used.")
+    statusList={"CHADEMO": CHADStatus, "DCCOMBOTYP1": DCCStatus}
+    return statusList
 
 
 
@@ -287,12 +297,14 @@ def findUsageAverage(starttime, endtime, stationName):
 
 populate_meters(con)
 def mainProblemDetection(con, startofday, endofday, name):
-for meter in meters:
-    days = FindDayIntervals(con)
-    i = 0
-    for day in days:
-        startofday = days[i]
-        endofday = days[i+1]
-        if detect_congestion(con, startofday, endofday, meter.name):
-            meter.problems.append(structures.ProblemCongestion(startofday, endofday))
-        if findUsageAverage(startofday, endofday, meter.name):
+    for meter in meters:
+        days = FindTimeIntervals(con)
+        i = 0
+        for day in days:
+            startofday = days[i]
+            endofday = days[i+1]
+            if detect_congestion(con, startofday, endofday, meter.name):
+                meter.problems.append(structures.ProblemCongestion(startofday, endofday))
+            x=findUsageAverage()
+            if x["CHADEMO"]==True:
+                pass
