@@ -4,6 +4,7 @@ from datetime import datetime
 import MySQLdb
 from statistics import mean
 import structures
+from time import sleep
 
 
 global meters  # List of structures.Meter objects
@@ -296,15 +297,25 @@ def findUsageAverage(starttime, endtime, stationName):
 # BEGIN MAIN PROBLEM DETECTION #
 
 populate_meters(con)
-def mainProblemDetection(con, startofday, endofday, name):
+
+while True:
     for meter in meters:
-        days = FindTimeIntervals(con)
+        time = FindTimeIntervals(con, 604800)
         i = 0
-        for day in days:
-            startofday = days[i]
-            endofday = days[i+1]
+        for day in time:
+            startofday = time[i]
+            endofday = time[i+1]
             if detect_congestion(con, startofday, endofday, meter.name):
-                meter.problems.append(structures.ProblemCongestion(startofday, endofday))
-            x=findUsageAverage()
-            if x["CHADEMO"]==True:
-                pass
+                meter.problems.append(structures.Problem(startofday, endofday, "Congestion", 0x7C007E))
+            portUse=findUsageAverage(startofday, endofday, meter.name)
+            if portUse["CHADEMO"] and portUse["DCCOMBOTYP1"]:
+                meter.problems.append(structures.Problem(startofday, endofday, "Both Broken", 0xFF0000))
+            elif portUse["CHADEMO"]:
+                meter.problems.append(structures.Problem(startofday, endofday, "Broken(CHADEMO)", 0xFF00D1))
+            elif portUse["DCCOMBOTYP1"]:
+                meter.problems.append(structures.Problem(startofday, endofday, "Broken(DCCOMBOTYP1)", 0xF0FF00))
+            i += 1
+    print(meters)
+    print(meters[0].problems)
+    print(meters[1].problems)
+    sleep(1800)
