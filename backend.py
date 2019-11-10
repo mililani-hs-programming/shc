@@ -21,14 +21,17 @@ def findMinTime(con):
     minTime = minTimeResult.fetch_row(maxrows=0)
     return(minTime)
 
+
 def findMaxTime(con):
     con.query("SELECT MAX(End_Time) FROM raw")
     maxTimeResult = con.store_result()
     maxTime = maxTimeResult.fetch_row(maxrows=0)
     return(maxTime)
 
+
 def add_column(db, table, column, data, dtype="TEXT"):
     """Set a column equal to a list, creating the column if it doesn't exist"""
+
     # Sanity checks #
     if type(db) is not MySQLdb.connections.Connection:
         raise TypeError("Expected MySQLdb.connections.connection, got {}".format(type(db)))
@@ -49,7 +52,7 @@ def add_column(db, table, column, data, dtype="TEXT"):
 
     # Find max row num to know when to stop updating and start inserting #
     cur = db.cursor()
-    cur.execute("SELECT MAX(id) FROM {}".format(table))
+    cur.execute("SELECT MAX(ID) FROM {}".format(table))
     maxindex = cur.fetchall()
 
     # Create column and add in data #
@@ -262,4 +265,3 @@ def findUsageAverage(starttime, endtime, stationName):
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
     else:
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers are being used.")
-
