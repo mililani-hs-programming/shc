@@ -1,7 +1,8 @@
+#from UnixConverter import unix_Converter
 from datetime import datetime
-from statistics import mean
-from time import sleep
+#unix_Converter()
 import MySQLdb
+from statistics import mean
 import structures
 
 
@@ -76,7 +77,7 @@ def sql_fetch_StartTimes(db):
 
 
 def sql_fetch_EndTimes(db):
-    #EndTime = cursorObj.execute('SELECT End_Time FROM raw')
+    #EndTime = cursorObj.execute('SELECT End_Time FROM Front_raw_data')
     db.query('SELECT End_Time FROM Front_raw_data')
     EndTimeResult = db.store_result()
     EndTime=EndTimeResult.fetch_row(maxrows=0)
@@ -122,6 +123,18 @@ def unix_ConvertEnd(db):
     return EndListInt
 
 
+def unix_Convert(date):
+    try:
+        utc = datetime.strptime(date, "%m-%d-%y %H:%M:%S")
+        utcint = int(utc.timestamp()) - 36000
+        print (utcint)
+    except ValueError:
+        utc = datetime.strptime(date, "%m/%d/%Y %H:%M:%S")
+        utcint = int(utc.timestamp()) - 36000
+        print (utcint)
+    return(utcint)
+
+
 #given start + end time, find values between it, find avg
 #select avg kwh from raw where timestamp is less than or greater than __
 def gatherRows(starttime, endtime, db):
@@ -131,7 +144,7 @@ def gatherRows(starttime, endtime, db):
     rowDataList = []
     for i in rowDataResults:
         rowDataList.append(i)
-    #print(rowDataList)
+    print(rowDataList)
     return rowDataList
 
 
@@ -157,38 +170,23 @@ def averageDataActually(starttime, endtime, column):
 
 
 #Find TimeIntervals and add Timeintervals to proc table
-def FindTimeIntervals(db, timeInterval):
+def FindDayIntervals(db):
     maxTime = findMaxTime(db)
     minTime = findMinTime(db)
     maxTime=int(maxTime[0][0])
     minTime=int(minTime[0][0])
-    UnixDayValue=timeInterval
+    UnixDayValue=86400
     indexes=int((maxTime-minTime)/UnixDayValue)+1
-    DayIndexes=[]
+    TimeIndexes=[]
     for i in range(indexes):
         x=minTime+i*UnixDayValue
-        DayIndexes.append(x)
-    DayIndexes.append(maxTime)
-    print(DayIndexes)
-    return(DayIndexes)
-    # add_column(db=con, table='proc', column='TimeInterval', data=FindDayIntervals())
-
-def FindWeekIntervals(db):
-    maxTime = findMaxTime(db)
-    minTime = findMinTime(db)
-    maxTime=int(maxTime[0][0])
-    minTime=int(minTime[0][0])
-    UnixDayValue=604800
-    indexes=int((maxTime-minTime)/UnixDayValue)+1
-    WeekIndexes=[]
-    for i in range(indexes):
-        x=minTime+i*UnixDayValue
-        WeekIndexes.append(x)
-    WeekIndexes.append(maxTime)
-    print(WeekIndexes)
-    return(WeekIndexes)
-    # add_column(db=con, table='proc', column='TimeInterval', data=FindWeekIntervals())
-
+        TimeIndexes.append(x)
+    TimeIndexes.append(maxTime)
+    print(maxTime)
+    print(minTime)
+    print(TimeIndexes)
+    return(TimeIndexes)
+    # add_column(db=db, table='proc', column='TimeInterval', data=FindDayIntervals())
 
 
 def populate_meters(db):
@@ -220,27 +218,44 @@ def chargeTypeUsages(db, startTime, endTime, stationName):
 def detect_congestion(db, start_time, end_time, metername):
     """Search for congestion **between** start_time and end_time
     Returns True if avg time between usages is less than CONGESTION_THRESH"""
-    try:
-        CONGESTION_THRESH = 60
+    CONGESTION_THRESH = 60
 
-        time_between_charges = []
-        previous_previous_time = start_time  # When I made this variable, I realized all was lost.
-        current_time = start_time
-        while int(current_time) < end_time:
-            db.query("SELECT MIN(End_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND End_Time>'{}'".format(metername,
-                                                                                                             previous_previous_time))
-            previous_time = db.store_result().fetch_row()[0][0]
-            db.query("SELECT MIN(Start_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND Start_Time>'{}'".format(metername,
-                                                                                                                 previous_time))
-            current_time = db.store_result().fetch_row()[0][0]
-            previous_previous_time = previous_time
-            time_between_charges.append(int(current_time) - int(previous_time))
-        if mean(time_between_charges) <= CONGESTION_THRESH:
-            return True
-        else:
-            return False
-    except TypeError or IndexError:
-        print("reached end of table")
+    time_between_charges = []
+    previous_previous_time = start_time  # When I made this variable, I realized all was lost.
+    current_time = start_time
+    while int(current_time) < end_time:
+        db.query("SELECT MIN(End_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND End_Time>'{}'".format(metername, previous_previous_time))
+        previous_time = db.store_result().fetch_row()[0][0]
+        db.query("SELECT MIN(Start_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND Start_Time>'{}'".format(metername, previous_time))
+        current_time = db.store_result().fetch_row()[0][0]
+        previous_previous_time = previous_time
+        time_between_charges.append(int(current_time) - int(previous_time))
+    if mean(time_between_charges) <= CONGESTION_THRESH:
+        return True
+    else:
+        return False
+
+
+def findCongestionPercentage(db, start_time, end_time, metername):
+    """Search for congestion **between** start_time and end_time
+    Returns True if avg time between usages is less than CONGESTION_THRESH"""
+    CONGESTION_THRESH = 60
+
+    time_between_charges = []
+    previous_previous_time = start_time  # When I made this variable, I realized all was lost.
+    current_time = start_time
+    while int(current_time) < end_time:
+        db.query("SELECT MIN(End_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND End_Time>'{}'".format(metername, previous_previous_time))
+        previous_time = db.store_result().fetch_row()[0][0]
+        db.query("SELECT MIN(Start_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND Start_Time>'{}'".format(metername, previous_time))
+        current_time = db.store_result().fetch_row()[0][0]
+        previous_previous_time = previous_time
+        time_between_charges.append(int(current_time) - int(previous_time))
+    CongestionInstances=0
+    for i in time_between_charges:
+        if i <= CONGESTION_THRESH:
+            CongestionInstances+=1
+    print(str(round(100*CongestionInstances/(len(time_between_charges)+1), 2))+"% Congestion")
 
 
 def chargeCHADUsages(db, startTime, endTime, stationName):
@@ -274,40 +289,52 @@ def chargeDCCUsages(db, startTime, endTime, stationName):
     return DCCData
 
 
-def findUsageAverage(db, starttime, endtime, stationName):
+def findUsageAverage(starttime, endtime, stationName):
     CHADStatus=True
     DCCStatus=True
     timeInterval=endtime-starttime
     if (chargeCHADUsages(db, starttime, endtime, stationName) == 0) and (chargeDCCUsages(db, starttime, endtime, stationName) == 0):
-        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers appear to be broken.")
+        #print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers appear to be broken.")
         CHADStatus = False
         DCCStatus = False
     elif chargeCHADUsages(db, starttime, endtime, stationName) == 0:
-        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the CHADEMO charger appears to be broken.")
+        #print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the CHADEMO charger appears to be broken.")
         CHADStatus = False
         DCCStatus = True
     elif chargeDCCUsages(db, starttime, endtime, stationName) == 0:
-        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
+        #print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
         CHADStatus = True
         DCCStatus = False
     else:
-        print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers are being used.")
+        pass
+        #print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers are being used.")
     statusList={"CHADEMO": CHADStatus, "DCCOMBOTYP1": DCCStatus}
     print(CHADStatus)
     print(DCCStatus)
     return statusList
 
 
+def FindTimeIntervals(db, timeInterval):
+    maxTime = findMaxTime(db)
+    minTime = findMinTime(db)
+    maxTime=int(maxTime[0][0])
+    minTime=int(minTime[0][0])
+    UnixDayValue=timeInterval
+    indexes=int((maxTime-minTime)/UnixDayValue)+1
+    DayIndexes=[]
+    for i in range(indexes):
+        x=minTime+i*UnixDayValue
+        DayIndexes.append(x)
+    DayIndexes.append(maxTime)
+    print(DayIndexes)
+    return DayIndexes
+    # add_column(db=db, table='proc', column='TimeInterval', data=FindDayIntervals())
 
 
 # BEGIN MAIN PROBLEM DETECTION #
+def find_problems():
+    populate_meters(con)
 
-import pdb
-global portUse
-
-populate_meters(con)
-
-while True:
     for meter in meters:
         days = FindTimeIntervals(con, 86400)
         weeks = FindTimeIntervals(con, 604800)
@@ -315,30 +342,23 @@ while True:
             i = 0
             # Checks that run for each day#
             for day in days:
-                    startofday = days[i]
-                    endofday = days[i+1]
-                    if detect_congestion(con, startofday, endofday, meter.name):
-                        meter.problems.append(structures.Problem(startofday, endofday, "Congestion", 0x7C007E))
-                    portUse=findUsageAverage(con, startofday, endofday, meter.name)
+                startofday = days[i]
+                endofday = days[i+1]
+                if detect_congestion(con, startofday, endofday, meter.name):
+                    meter.problems.append(structures.Problem(startofday, endofday, "Congestion", 0x7C007E))
                     i += 1
             i = 0
             # Checks that run for each week #
             for week in weeks:
                 startofweek = weeks[i]
                 endofweek = weeks[i + 1]
+                portUse=findUsageAverage(startofweek, endofweek, meter.name)
                 if portUse["CHADEMO"] and portUse["DCCOMBOTYP1"]:
-                    meter.problems.append(structures.Problem(startofweek, endofweek, "Both Broken", 0xFF0000))
+                    meter.problems.append(structures.Problem(startofweek, endofweek, "Charger Broken", 0xFF0000))
                 elif portUse["CHADEMO"]:
-                    meter.problems.append(structures.Problem(startofweek, endofweek, "Broken(CHADEMO)", 0xFF00D1))
+                    meter.problems.append(structures.Problem(startofweek, endofweek, "Broken Port (CHADEMO)", 0xFF00D1))
                 elif portUse["DCCOMBOTYP1"]:
-                    meter.problems.append(structures.Problem(startofweek, endofweek, "Broken(DCCOMBOTYP1)", 0xF0FF00))
+                    meter.problems.append(structures.Problem(startofweek, endofweek, "Broken Port (DCCOMBOTYP1)", 0xF0FF00))
 
         except IndexError:
-                print("reached end of table")
-        print(meters)
-        for meter in meters:
-            for problem in meter.problems:
-                print(problem.problemName)
-                print(problem.problemStart)
-                print(problem.problemEnd)
-        sleep(1800)
+            print("reached end of table")
