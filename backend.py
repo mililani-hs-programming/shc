@@ -1,10 +1,8 @@
-#from UnixConverter import unix_Converter
 from datetime import datetime
-#unix_Converter()
-import MySQLdb
 from statistics import mean
-import structures
 from time import sleep
+import MySQLdb
+import structures
 
 
 global meters  # List of structures.Meter objects
@@ -16,16 +14,16 @@ con = MySQLdb.connect(db="hacc",host="pf.parsl.dev", user="hacc", passwd="hacc20
 cursorObj = con.cursor()
 
 
-def findMinTime(con):
-    con.query("SELECT MIN(Start_Time) FROM raw")
-    minTimeResult = con.store_result()
+def findMinTime(db):
+    db.query("SELECT MIN(Start_Time) FROM Front_raw_data")
+    minTimeResult = db.store_result()
     minTime = minTimeResult.fetch_row(maxrows=0)
     return(minTime)
 
 
-def findMaxTime(con):
-    con.query("SELECT MAX(End_Time) FROM raw")
-    maxTimeResult = con.store_result()
+def findMaxTime(db):
+    db.query("SELECT MAX(End_Time) FROM Front_raw_data")
+    maxTimeResult = db.store_result()
     maxTime = maxTimeResult.fetch_row(maxrows=0)
     return(maxTime)
 
@@ -67,9 +65,9 @@ def add_column(db, table, column, data, dtype="TEXT"):
         i += 1
 
 #Unix Converter and stuff
-def sql_fetch_StartTimes(con):
-    con.query('SELECT Start_Time FROM raw')
-    StartTimeResult=con.store_result()
+def sql_fetch_StartTimes(db):
+    db.query('SELECT Start_Time FROM Front_raw_data')
+    StartTimeResult=db.store_result()
     StartTime=StartTimeResult.fetch_row(maxrows=0)
     StartList=[]
     for row in StartTime:
@@ -77,10 +75,10 @@ def sql_fetch_StartTimes(con):
     return StartList
 
 
-def sql_fetch_EndTimes(con):
+def sql_fetch_EndTimes(db):
     #EndTime = cursorObj.execute('SELECT End_Time FROM raw')
-    con.query('SELECT End_Time FROM raw')
-    EndTimeResult = con.store_result()
+    db.query('SELECT End_Time FROM Front_raw_data')
+    EndTimeResult = db.store_result()
     EndTime=EndTimeResult.fetch_row(maxrows=0)
     EndList=[]
     for row in EndTime:
@@ -88,9 +86,9 @@ def sql_fetch_EndTimes(con):
     return EndList
 
 
-def unix_ConvertStart(con):
+def unix_ConvertStart(db):
     StartListInt=[]
-    StartList=sql_fetch_StartTimes(con)
+    StartList=sql_fetch_StartTimes(db)
     for date in StartList:
         try:
             utc = datetime.strptime(date, "('%m-%d-%y %H:%M:%S',)")
@@ -106,9 +104,9 @@ def unix_ConvertStart(con):
     return StartListInt
 
 
-def unix_ConvertEnd(con):
+def unix_ConvertEnd(db):
     EndListInt = []
-    EndList=sql_fetch_EndTimes(con)
+    EndList=sql_fetch_EndTimes(db)
     for date in EndList:
         try:
             utc = datetime.strptime(date, "('%m-%d-%y %H:%M:%S',)")
@@ -126,9 +124,9 @@ def unix_ConvertEnd(con):
 
 #given start + end time, find values between it, find avg
 #select avg kwh from raw where timestamp is less than or greater than __
-def gatherRows(starttime, endtime, con):
-    con.query(("SELECT * FROM raw WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
-    rowData = con.store_result()
+def gatherRows(starttime, endtime, db):
+    db.query(("SELECT * FROM Front_raw_data WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
+    rowData = db.store_result()
     rowDataResults = rowData.fetch_row(maxrows=0)
     rowDataList = []
     for i in rowDataResults:
@@ -138,7 +136,7 @@ def gatherRows(starttime, endtime, con):
 
 
 def averageData(starttime, endtime, column):
-    rowDataList = gatherRows(starttime, endtime, con)
+    rowDataList = gatherRows(starttime, endtime, db)
     columndata = []
     numba=0
     for i in rowDataList:
@@ -159,9 +157,9 @@ def averageDataActually(starttime, endtime, column):
 
 
 #Find TimeIntervals and add Timeintervals to proc table
-def FindTimeIntervals(con, timeInterval):
-    maxTime = findMaxTime(con)
-    minTime = findMinTime(con)
+def FindTimeIntervals(db, timeInterval):
+    maxTime = findMaxTime(db)
+    minTime = findMinTime(db)
     maxTime=int(maxTime[0][0])
     minTime=int(minTime[0][0])
     UnixDayValue=timeInterval
@@ -175,10 +173,9 @@ def FindTimeIntervals(con, timeInterval):
     return(DayIndexes)
     # add_column(db=con, table='proc', column='TimeInterval', data=FindDayIntervals())
 
-def FindWeekIntervals(con):
-
-    maxTime = findMaxTime(con)
-    minTime = findMinTime(con)
+def FindWeekIntervals(db):
+    maxTime = findMaxTime(db)
+    minTime = findMinTime(db)
     maxTime=int(maxTime[0][0])
     minTime=int(minTime[0][0])
     UnixDayValue=604800
@@ -195,7 +192,7 @@ def FindWeekIntervals(con):
 
 
 def populate_meters(db):
-    db.query("SELECT DISTINCT Charge_Station_Name FROM raw;")
+    db.query("SELECT DISTINCT Charge_Station_Name FROM Front_raw_data;")
     dbnames = db.store_result()
     chargerindex = 0  # Index of charger name in 'meters'
     for chargertup in dbnames.fetch_row(maxrows=0):
@@ -230,10 +227,10 @@ def detect_congestion(db, start_time, end_time, metername):
         previous_previous_time = start_time  # When I made this variable, I realized all was lost.
         current_time = start_time
         while int(current_time) < end_time:
-            db.query("SELECT MIN(End_Time) FROM raw WHERE Charge_Station_Name='{}' AND End_Time>'{}'".format(metername,
+            db.query("SELECT MIN(End_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND End_Time>'{}'".format(metername,
                                                                                                              previous_previous_time))
             previous_time = db.store_result().fetch_row()[0][0]
-            db.query("SELECT MIN(Start_Time) FROM raw WHERE Charge_Station_Name='{}' AND Start_Time>'{}'".format(metername,
+            db.query("SELECT MIN(Start_Time) FROM Front_raw_data WHERE Charge_Station_Name='{}' AND Start_Time>'{}'".format(metername,
                                                                                                                  previous_time))
             current_time = db.store_result().fetch_row()[0][0]
             previous_previous_time = previous_time
@@ -277,19 +274,19 @@ def chargeDCCUsages(db, startTime, endTime, stationName):
     return DCCData
 
 
-def findUsageAverage(starttime, endtime, stationName):
+def findUsageAverage(db, starttime, endtime, stationName):
     CHADStatus=True
     DCCStatus=True
     timeInterval=endtime-starttime
-    if (chargeCHADUsages(con, starttime, endtime, stationName) == 0) and (chargeDCCUsages(con, starttime, endtime, stationName) == 0):
+    if (chargeCHADUsages(db, starttime, endtime, stationName) == 0) and (chargeDCCUsages(db, starttime, endtime, stationName) == 0):
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers appear to be broken.")
         CHADStatus = False
         DCCStatus = False
-    elif chargeCHADUsages(con, starttime, endtime, stationName) == 0:
+    elif chargeCHADUsages(db, starttime, endtime, stationName) == 0:
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the CHADEMO charger appears to be broken.")
         CHADStatus = False
         DCCStatus = True
-    elif chargeDCCUsages(con, starttime, endtime, stationName) == 0:
+    elif chargeDCCUsages(db, starttime, endtime, stationName) == 0:
         print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
         CHADStatus = True
         DCCStatus = False
@@ -321,7 +318,7 @@ while True:
                     endofday = days[i+1]
                     if detect_congestion(con, startofday, endofday, meter.name):
                         meter.problems.append(structures.Problem(startofday, endofday, "Congestion", 0x7C007E))
-                    portUse=findUsageAverage(startofday, endofday, meter.name)
+                    portUse=findUsageAverage(con, startofday, endofday, meter.name)
                     i += 1
             i = 0
             # Checks that run for each week #
