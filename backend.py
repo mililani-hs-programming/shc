@@ -303,6 +303,7 @@ def findUsageAverage(db, starttime, endtime, stationName):
 # BEGIN MAIN PROBLEM DETECTION #
 
 import pdb
+global portUse
 
 populate_meters(con)
 
