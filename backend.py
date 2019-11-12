@@ -310,8 +310,8 @@ def find_problems():
             for day in days:
                 startofday = days[i]
                 endofday = days[i+1]
-                if detect_congestion(con, startofday, endofday, meter.name):
-                    meter.problems.append(structures.Problem(startofday, endofday, "Congestion", 0x7C007E))
+                #if detect_congestion(con, startofday, endofday, meter.name):
+                #    meter.problems.append(structures.Problem(startofday, endofday, "Congestion", 0x7C007E))
                 i += 1
             i = 0
             # Checks that run for each week #
