@@ -68,7 +68,7 @@ def add_column(db, table, column, data, dtype="TEXT"):
 #Unix Converter and stuff
 def sql_fetch_StartTimes(db):
     db.query('SELECT Start_Time FROM Front_raw_data')
-    StartTimeResult=con.store_result()
+    StartTimeResult=db.store_result()
     StartTime=StartTimeResult.fetch_row(maxrows=0)
     StartList=[]
     for row in StartTime:
@@ -76,10 +76,10 @@ def sql_fetch_StartTimes(db):
     return StartList
 
 
-def sql_fetch_EndTimes(con):
+def sql_fetch_EndTimes(db):
     #EndTime = cursorObj.execute('SELECT End_Time FROM Front_raw_data')
-    con.query('SELECT End_Time FROM Front_raw_data')
-    EndTimeResult = con.store_result()
+    db.query('SELECT End_Time FROM Front_raw_data')
+    EndTimeResult = db.store_result()
     EndTime=EndTimeResult.fetch_row(maxrows=0)
     EndList=[]
     for row in EndTime:
@@ -87,9 +87,9 @@ def sql_fetch_EndTimes(con):
     return EndList
 
 
-def unix_ConvertStart(con):
+def unix_ConvertStart(db):
     StartListInt=[]
-    StartList=sql_fetch_StartTimes(con)
+    StartList=sql_fetch_StartTimes(db)
     for date in StartList:
         try:
             utc = datetime.strptime(date, "('%m-%d-%y %H:%M:%S',)")
@@ -105,9 +105,9 @@ def unix_ConvertStart(con):
     return StartListInt
 
 
-def unix_ConvertEnd(con):
+def unix_ConvertEnd(db):
     EndListInt = []
-    EndList=sql_fetch_EndTimes(con)
+    EndList=sql_fetch_EndTimes(db)
     for date in EndList:
         try:
             utc = datetime.strptime(date, "('%m-%d-%y %H:%M:%S',)")
@@ -125,9 +125,9 @@ def unix_ConvertEnd(con):
 
 #given start + end time, find values between it, find avg
 #select avg kwh from raw where timestamp is less than or greater than __
-def gatherRows(starttime, endtime, con):
-    con.query(("SELECT * FROM Front_raw_data WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
-    rowData = con.store_result()
+def gatherRows(starttime, endtime, db):
+    db.query(("SELECT * FROM Front_raw_data WHERE Start_Time >= '{}' AND End_Time <= '{}'".format(starttime, endtime)))
+    rowData = db.store_result()
     rowDataResults = rowData.fetch_row(maxrows=0)
     rowDataList = []
     for i in rowDataResults:
@@ -137,7 +137,7 @@ def gatherRows(starttime, endtime, con):
 
 
 def averageData(starttime, endtime, column):
-    rowDataList = gatherRows(starttime, endtime, con)
+    rowDataList = gatherRows(starttime, endtime, db)
     columndata = []
     numba=0
     for i in rowDataList:
@@ -255,19 +255,19 @@ def chargeDCCUsages(db, startTime, endTime, stationName):
     return DCCData
 
 
-def findUsageAverage(starttime, endtime, stationName):
+def findUsageAverage(db, starttime, endtime, stationName):
     CHADStatus=True
     DCCStatus=True
     timeInterval=endtime-starttime
-    if (chargeCHADUsages(con, starttime, endtime, stationName) == 0) and (chargeDCCUsages(con, starttime, endtime, stationName) == 0):
+    if (chargeCHADUsages(db, starttime, endtime, stationName) == 0) and (chargeDCCUsages(db, starttime, endtime, stationName) == 0):
         #print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), both chargers appear to be broken.")
         CHADStatus = False
         DCCStatus = False
-    elif chargeCHADUsages(con, starttime, endtime, stationName) == 0:
+    elif chargeCHADUsages(db, starttime, endtime, stationName) == 0:
         #print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the CHADEMO charger appears to be broken.")
         CHADStatus = False
         DCCStatus = True
-    elif chargeDCCUsages(con, starttime, endtime, stationName) == 0:
+    elif chargeDCCUsages(db, starttime, endtime, stationName) == 0:
         #print("From " + str(starttime) + " to " + str(endtime) + " (" + str(round(timeInterval/86400.0, 3)) + " days), the DCCOMBOTYP1 charger appears to be broken.")
         CHADStatus = True
         DCCStatus = False
@@ -312,19 +312,25 @@ def find_problems():
                 endofday = days[i+1]
                 if detect_congestion(con, startofday, endofday, meter.name):
                     meter.problems.append(structures.Problem(startofday, endofday, "Congestion", 0x7C007E))
-                    portUse=findUsageAverage(startofday, endofday, meter.name)
-                    i += 1
+                i += 1
             i = 0
             # Checks that run for each week #
             for week in weeks:
                 startofweek = weeks[i]
                 endofweek = weeks[i + 1]
+                portUse = findUsageAverage(con, startofweek, endofweek, meter.name)
                 if portUse["CHADEMO"] and portUse["DCCOMBOTYP1"]:
                     meter.problems.append(structures.Problem(startofweek, endofweek, "Charger Broken", 0xFF0000))
                 elif portUse["CHADEMO"]:
                     meter.problems.append(structures.Problem(startofweek, endofweek, "Broken Port (CHADEMO)", 0xFF00D1))
                 elif portUse["DCCOMBOTYP1"]:
                     meter.problems.append(structures.Problem(startofweek, endofweek, "Broken Port (DCCOMBOTYP1)", 0xF0FF00))
+                i += 1
 
         except IndexError:
             print("reached end of table")
+
+find_problems()
+for meter in meters:
+    for problem in meter.problems:
+        print("Problem in meter {}, start: {} end: {}".format(meter.name, problem.problemStart, problem.problemEnd))
